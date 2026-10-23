@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/CMakeFiles/bootloader
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/CMakeFiles/bootloader.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/CMakeFiles/bootloader-complete.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

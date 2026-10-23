@@ -1,0 +1,2 @@
+source /home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/gdbinit/symbols
+source /home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/gdbinit/connect
