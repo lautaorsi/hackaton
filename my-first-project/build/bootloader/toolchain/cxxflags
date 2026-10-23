@@ -1,8 +1,0 @@
-"-specs=/home/lo/Desktop/hackaton/esp-idf/myCode/my-first-project/build/bootloader/specs/picolibc.specs"
--D__PICOLIBC_ERRNO_FUNCTION=__errno
--Wno-frame-address
--mlongcalls
--fno-builtin-memcpy
--fno-builtin-memset
--fno-builtin-bzero
--fno-rtti
