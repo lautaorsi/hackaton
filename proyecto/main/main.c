@@ -14,13 +14,24 @@
 #define MAX_SCREEN_CHARS 20
 #define MAX_SCREEN_ROWS 8
 
+struct DateTime {
+    int weekDay;
+    int hour;
+    int minute;
+};
+
+struct CalendarEntry {
+    char descripcion[MAX_SCREEN_CHARS];
+    struct DateTime dateTime;
+};
+
 
 
 void app_main(void) {
     ESP_LOGI("MAIN", "Hello from my custom code folder!");
     
     start_server();
-    
+
     bool display_ok = display_init() == ESP_OK;
     bool buttons_ok = buttons_init() == ESP_OK; 
 
@@ -70,25 +81,25 @@ void app_main(void) {
             button_event_t ev;
             if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS) {
                 
-            switch (ev.id) {
-            case BTN_UP:
-                if (selected_row > 0) selected_row--;
-                break;
-            case BTN_DOWN:
-                if (selected_row < MAX_SCREEN_ROWS - 1) selected_row++;
-                break;
-            case BTN_KEY3:
-                ESP_LOGI("MAIN", "Button pressed on row: %d", selected_row);
-                break;
-            case BTN_KEY4:
-                ESP_LOGI("MAIN", "EMERGENCY");
-                break;
-            default:
-                break;  
-            }
+                switch (ev.id) {
+                case BTN_UP:
+                    if (selected_row > 0) selected_row--;
+                    break;
+                case BTN_DOWN:
+                    if (selected_row < MAX_SCREEN_ROWS - 1) selected_row++;
+                    break;
+                case BTN_KEY3:
+                    ESP_LOGI("MAIN", "Button pressed on row: %d", selected_row);
+                    break;
+                case BTN_KEY4:
+                    ESP_LOGI("MAIN", "EMERGENCY");
+                    break;
+                default:
+                    break;  
+                }
 
             
-            vTaskDelay(pdMS_TO_TICKS(50)); 
+                vTaskDelay(pdMS_TO_TICKS(50)); 
             }
         }
     }
