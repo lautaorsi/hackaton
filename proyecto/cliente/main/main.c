@@ -20,6 +20,7 @@ static const char *TAG = "demo";
 
 static QueueHandle_t s_notice_queue;
 
+/*
 static const int s_button_freq[BTN_COUNT] = {
     [BTN_UP] = 659,
     [BTN_DOWN] = 440,
@@ -31,6 +32,7 @@ static const int s_button_freq[BTN_COUNT] = {
     [BTN_KEY3] = 392,
     [BTN_KEY4] = 523,
 };
+*/
 
 // Runs on the websocket task: only queues, never draws or plays.
 static void on_server_message(const char *message)
@@ -87,6 +89,15 @@ static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok, const char *
     }
 }
 
+// Sirena de dos tonos, unos 3 segundos.
+static void play_alarm(void)
+{
+    for (int i = 0; i < 6; i++) {
+        audio_play_tone(880, 250);
+        audio_play_tone(659, 250);
+    }
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "Hackathon board demo starting");
@@ -129,8 +140,13 @@ void app_main(void)
         button_event_t ev;
         if (xQueueReceive(events, &ev, pdMS_TO_TICKS(UI_PERIOD_MS)) == pdTRUE) {
             ESP_LOGI(TAG, "button %s %s", buttons_name(ev.id), ev.pressed ? "pressed" : "released");
-            if (ev.pressed && audio_ok) {
-                audio_play_tone(s_button_freq[ev.id], 100);
+            if (ev.pressed) {
+                char msg[40];
+                snprintf(msg, sizeof(msg), "event button %s", buttons_name(ev.id));
+
+                if (server_link_send(msg) != ESP_OK) {
+                    ESP_LOGW(TAG, "no se pudo enviar: sin conexion al server");
+                }
             }
         }
 
@@ -138,8 +154,13 @@ void app_main(void)
         if (xQueueReceive(s_notice_queue, incoming, 0) == pdTRUE) {
             strcpy(notice, incoming);
             notice_ms_left = NOTICE_SHOW_MS;
-            if (audio_ok) {
-                audio_play_tone(1000, 150);
+
+            if (strcmp(incoming, "hola") == 0) {
+                if (audio_ok) {
+                    play_alarm();
+                }
+            } else if (audio_ok) {
+                audio_play_tone(1000, 150);   // aviso normal
                 audio_play_tone(1500, 300);
             }
         } else if (notice_ms_left > 0) {
