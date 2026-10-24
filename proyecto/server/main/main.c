@@ -52,14 +52,23 @@ void app_main(void) {
             const struct CalendarEntry *alertEntry;
             if (xQueueReceive(calendar_alert_queue(), &alertEntry, 0) == pdPASS) {
                 ESP_LOGI("MAIN","MANDAR LA NOTIFICACION %s AL CLIENTE", alertEntry->descripcion);
+
+
+                //CODIGO QUE CORRE EL CLIENTE 
                 //display_clear();
                 // display_text(5, 0,  "** ALERT **", true);
                 // display_text(5, 16, alertEntry->descripcion, false);
                 // display_flush();
 
+                //for (int i = 0; i < 3; i++) {
+                //     audio_play_tone(880, 250);   // La5
+                //     audio_play_tone(659, 250);   // Mi5
+                // }
+
                 // button_event_t ev;
                 // xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(10000));  // wait for a button
                 // last_selected_row = -1;                           // redraw the menu
+
             }
 
             if (selected_row != last_selected_row) {
