@@ -66,4 +66,12 @@ menu "Example Configuration"
             bool "WAPI PSK"
     endchoice
 
+    config HACK_SPEAKER_VOLUME
+            int "Speaker Volume (0-100)"
+            default 50
+            range 0 100
+            help
+                Default speaker volume percentage for tone playback.
+
+
 endmenu
