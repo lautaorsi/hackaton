@@ -38,3 +38,11 @@ void menu_invalidate(menu_t *m);
 
 /** Redraws the display only if something changed. */
 void menu_draw(menu_t *m);
+
+/**
+ * Draws a full-screen alert: title banner, the message centered in a solid
+ * block, and a footer. Call it repeatedly with `inverted` toggling to make
+ * the block flash. It overwrites the whole screen, so call
+ * menu_invalidate() afterwards to bring the menu back.
+ */
+void menu_draw_alert(const char *message, bool inverted);

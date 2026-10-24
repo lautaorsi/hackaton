@@ -16,12 +16,28 @@
 #include "menu.h"  
 #include "calendar.h"   
 
+void waitForButton(){
+    QueueHandle_t btn_q = buttons_event_queue();
+    button_event_t ev;
+    while(true){
+        if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS && ev.pressed){
+            
+        }
+    }
+
+}
+
+
+
 void app_main(void) {
     calendar_init();
     start_server();
 
     calendar_set_timezone(CALENDAR_TZ_ARGENTINA);
+    
+    //Dummy events bc we can't afford a server
     calendar_set_fake_time(2026, 10, 23, 18, 59, 50);
+    
     calendar_load_dummy();
     calendar_start();
 
@@ -53,8 +69,15 @@ void app_main(void) {
         button_event_t ev;
         if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS && ev.pressed) {
             switch (ev.id) {
-            case BTN_UP:   menu_move_up(&menu);   break;
-            case BTN_DOWN: menu_move_down(&menu); break;
+
+            case BTN_UP:   
+                menu_move_up(&menu);   
+                break;
+            
+            case BTN_DOWN:
+                menu_move_down(&menu);
+                break;
+            
             case BTN_KEY3: {
                 char removed[MAX_SCREEN_CHARS];
                 if (menu_remove_selected(&menu, removed, sizeof(removed))) {
@@ -64,6 +87,8 @@ void app_main(void) {
             }
             case BTN_KEY4:
                 ESP_LOGI("MAIN", "EMERGENCY");
+                menu_draw_alert("ALERT", true);
+                waitForButton();
                 break;
             default:
                 break;

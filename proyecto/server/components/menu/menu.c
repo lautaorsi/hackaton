@@ -92,3 +92,42 @@ void menu_draw(menu_t *m)
     display_flush();
     m->dirty = false;
 }
+
+
+#define ALERT_TITLE  "!ALERTA!"
+#define ALERT_FOOTER "Apretá un botón"
+ 
+// Draws `text` centered in a full-width row. Padding with spaces makes the
+// inverted background span the whole row instead of only the text.
+static void draw_row_centered(int row, const char *text, bool inverted)
+{
+    char line[MAX_SCREEN_CHARS + 1];
+    int len = (int)strlen(text);
+    if (len > MAX_SCREEN_CHARS) len = MAX_SCREEN_CHARS;
+    int left = (MAX_SCREEN_CHARS - len) / 2;
+ 
+    memset(line, ' ', MAX_SCREEN_CHARS);
+    memcpy(line + left, text, (size_t)len);
+    line[MAX_SCREEN_CHARS] = '\0';
+ 
+    display_text(5, row * 8, line, inverted);
+}
+ 
+void menu_draw_alert(const char *message, bool inverted)
+{
+    const int msg_row = MENU_MAX_ROWS / 2 - 1;
+ 
+    display_clear();
+ 
+    // Title banner, always inverted
+    draw_row_centered(0, ALERT_TITLE, true);
+ 
+    // Solid block with the message in the middle; `inverted` makes it flash
+    for (int row = 1; row < MENU_MAX_ROWS - 1; row++) {
+        draw_row_centered(row, row == msg_row && message ? message : "", inverted);
+    }
+ 
+    draw_row_centered(MENU_MAX_ROWS - 1, ALERT_FOOTER, false);
+ 
+    display_flush();
+}
