@@ -16,18 +16,17 @@
 #include "menu.h"  
 #include "calendar.h"   
 
-void waitForButton(){
+static void waitForButton(void){
     QueueHandle_t btn_q = buttons_event_queue();
     button_event_t ev;
-    while(true){
-        if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS && ev.pressed){
-            
+
+    xQueueReset(btn_q);
+    while (true) {
+        if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS && ev.pressed) {
+            return;
         }
     }
-
 }
-
-
 
 void app_main(void) {
     calendar_init();
@@ -49,11 +48,7 @@ void app_main(void) {
 
     menu_t menu;
     menu_init(&menu);
-    for (int i = 0; i < MENU_MAX_ROWS; i++) {
-        char text[MAX_SCREEN_CHARS];
-        snprintf(text, sizeof(text), "Option %d", i + 1);   // placeholder
-        menu_add(&menu, text);
-    }
+
 
     QueueHandle_t btn_q = buttons_event_queue();
 
@@ -61,7 +56,13 @@ void app_main(void) {
         const struct CalendarEntry *alertEntry;
         if (xQueueReceive(calendar_alert_queue(), &alertEntry, 0) == pdPASS) {
             ESP_LOGI("MAIN", "MANDAR LA NOTIFICACION %s AL CLIENTE", alertEntry->descripcion);
-            // menu_invalidate(&menu);   // if you ever draw an alert on this screen
+            
+            if (!menu_add(&menu, alertEntry->descripcion)) {
+                ESP_LOGW("MAIN", "Menu full, dropping '%s'", alertEntry->descripcion);  //Si está llena la lista lo ignoramos? Decidir
+            }
+
+            menu_invalidate(&menu);
+            
         }
 
         menu_draw(&menu);
@@ -80,6 +81,8 @@ void app_main(void) {
             
             case BTN_KEY3: {
                 char removed[MAX_SCREEN_CHARS];
+                //Broadcastear a otros
+                //broadcastRemoveEvent(removed, sizeof(removed))
                 if (menu_remove_selected(&menu, removed, sizeof(removed))) {
                     ESP_LOGI("MAIN", "Selected: %s", removed);
                 }
@@ -87,8 +90,11 @@ void app_main(void) {
             }
             case BTN_KEY4:
                 ESP_LOGI("MAIN", "EMERGENCY");
-                menu_draw_alert("ALERT", true);
+                //Al ser server habria que tambien broadcastear a otros 
+                //broadcastAlert();
+                menu_draw_alert("ALERT");
                 waitForButton();
+                menu_invalidate(&menu);
                 break;
             default:
                 break;
