@@ -159,3 +159,8 @@ void menu_draw_alert(const char *message)
 
     display_flush();
 }
+
+
+void menu_notification(menu_t *menu){
+    
+}
