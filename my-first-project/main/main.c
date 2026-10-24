@@ -5,8 +5,11 @@
 #include "freertos/task.h"
 
 #include "audio.h"
-#include "buttons.h" // Assuming this handles your joystick or buttons
+#include "buttons.h" 
 #include "display.h"
+#include "nvs_flash.h"
+#include "esp_log.h"
+#include "wifi.h"
 
 #define MAX_SCREEN_CHARS 20
 #define MAX_SCREEN_ROWS 8
@@ -15,6 +18,8 @@
 
 void app_main(void) {
     ESP_LOGI("MAIN", "Hello from my custom code folder!");
+    
+    start_server();
     
     bool display_ok = display_init() == ESP_OK;
     bool buttons_ok = buttons_init() == ESP_OK; 
@@ -65,25 +70,24 @@ void app_main(void) {
             button_event_t ev;
             if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS) {
                 
-                // We only care about events where the button was *pressed down* (ev.pressed == true)
-                if (ev.pressed) {
-                    ESP_LOGI("MAIN", "%s", buttons_name(ev.id));
-                    if (ev.id == BTN_UP) {
-                        
-                        if (selected_row > 0) {
-                            selected_row--;
-                        }
-                    } else if (ev.id == BTN_DOWN) {
-                        
-                        if (selected_row < MAX_SCREEN_ROWS - 1) {
-                            selected_row++;
-                        }
-                    } else if (ev.id == BTN_CENTER) {
-                        ESP_LOGI("MAIN", "Button pressed on row: %d", selected_row);
-                    }
-                }
+            switch (ev.id) {
+            case BTN_UP:
+                if (selected_row > 0) selected_row--;
+                break;
+            case BTN_DOWN:
+                if (selected_row < MAX_SCREEN_ROWS - 1) selected_row++;
+                break;
+            case BTN_KEY3:
+                ESP_LOGI("MAIN", "Button pressed on row: %d", selected_row);
+                break;
+            case BTN_KEY4:
+                ESP_LOGI("MAIN", "EMERGENCY");
+                break;
+            default:
+                break;  
+            }
 
-            // Yield to other FreeRTOS tasks and prevent 100% CPU usage
+            
             vTaskDelay(pdMS_TO_TICKS(50)); 
             }
         }
