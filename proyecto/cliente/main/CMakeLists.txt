@@ -5,6 +5,7 @@ idf_component_register(
         "audio.c"
         "buttons.c"
         "wifi_manager.c"
+        "server_link.c"
     INCLUDE_DIRS "."
     PRIV_REQUIRES
         esp_lcd
@@ -15,5 +16,6 @@ idf_component_register(
         esp_event
         esp_netif
         nvs_flash
+        esp_websocket_client
 )
 

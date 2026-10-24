@@ -1,17 +1,24 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 
 #include "audio.h"
 #include "buttons.h"
 #include "display.h"
-#include "wifi_manager.h" //add para wifi
+#include "server_link.h"
+#include "wifi_manager.h"
 
 static const char *TAG = "demo";
 
-#define UI_PERIOD_MS 50
+#define UI_PERIOD_MS   50
+#define NOTICE_MAX_LEN 21     // 20 caracteres entran en la pantalla + '\0'
+#define NOTICE_SHOW_MS 5000
+
+static QueueHandle_t s_notice_queue;
 
 static const int s_button_freq[BTN_COUNT] = {
     [BTN_UP] = 659,
@@ -25,6 +32,18 @@ static const int s_button_freq[BTN_COUNT] = {
     [BTN_KEY4] = 523,
 };
 
+// Runs on the websocket task: only queues, never draws or plays.
+static void on_server_message(const char *message)
+{
+    ESP_LOGI(TAG, "server dice: %s", message);
+
+    if (strncmp(message, "notify ", 7) == 0) {
+        char notice[NOTICE_MAX_LEN];
+        snprintf(notice, sizeof(notice), "%.20s", message + 7);
+        xQueueSend(s_notice_queue, notice, 0);
+    }
+}
+
 static void draw_key(int x, int y, int size, bool pressed)
 {
     if (pressed) {
@@ -35,12 +54,12 @@ static void draw_key(int x, int y, int size, bool pressed)
     }
 }
 
-static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
+static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok, const char *notice)
 {
     char line[24];
 
     display_clear();
-    display_text(2, 1, "HACKATHON BOARD", true);
+    display_text(2, 1, notice[0] ? notice : "HACKATHON BOARD", true);
 
     display_text(0, 14, "MIC", false);
     display_draw_rect(22, 13, 82, 10);
@@ -70,19 +89,18 @@ static void draw_ui(uint32_t pressed, int mic_level, bool audio_ok)
 
 void app_main(void)
 {
-// codigo wifi
-    ESP_LOGI(TAG, "Hackathon board demo starting");
-
-    ESP_ERROR_CHECK(wifi_manager_init());
-
     ESP_LOGI(TAG, "Hackathon board demo starting");
 
     bool display_ok = display_init() == ESP_OK;
     if (!display_ok) {
         ESP_LOGE(TAG, "display init failed - continuing without screen");
-        }
+    }
     ESP_ERROR_CHECK(buttons_init());
-// fin codigo wifi
+
+    s_notice_queue = xQueueCreate(4, NOTICE_MAX_LEN);
+    ESP_ERROR_CHECK(wifi_manager_init());
+    ESP_ERROR_CHECK(server_link_start(on_server_message));
+
     if (display_ok) {
         display_clear();
         display_text(10, 8, "Hello, Hackathon!", false);
@@ -104,6 +122,9 @@ void app_main(void)
 
     QueueHandle_t events = buttons_event_queue();
     int log_div = 0;
+    char notice[NOTICE_MAX_LEN] = "";
+    int notice_ms_left = 0;
+
     while (1) {
         button_event_t ev;
         if (xQueueReceive(events, &ev, pdMS_TO_TICKS(UI_PERIOD_MS)) == pdTRUE) {
@@ -113,9 +134,24 @@ void app_main(void)
             }
         }
 
+        char incoming[NOTICE_MAX_LEN];
+        if (xQueueReceive(s_notice_queue, incoming, 0) == pdTRUE) {
+            strcpy(notice, incoming);
+            notice_ms_left = NOTICE_SHOW_MS;
+            if (audio_ok) {
+                audio_play_tone(1000, 150);
+                audio_play_tone(1500, 300);
+            }
+        } else if (notice_ms_left > 0) {
+            notice_ms_left -= UI_PERIOD_MS;
+            if (notice_ms_left <= 0) {
+                notice[0] = '\0';
+            }
+        }
+
         int mic_level = audio_ok ? audio_mic_level() : 0;
         if (display_ok) {
-            draw_ui(buttons_read(), mic_level, audio_ok);
+            draw_ui(buttons_read(), mic_level, audio_ok, notice);
             display_flush();
         }
 

@@ -20,7 +20,7 @@ static void waitForButton(void){
     QueueHandle_t btn_q = buttons_event_queue();
     button_event_t ev;
 
-    xQueueReset(btn_q);
+    // xQueueReset(btn_q); 
     while (true) {
         if (xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(50)) == pdPASS && ev.pressed) {
             return;
@@ -55,14 +55,10 @@ void app_main(void) {
     while (true) {
         const struct CalendarEntry *alertEntry;
         if (xQueueReceive(calendar_alert_queue(), &alertEntry, 0) == pdPASS) {
-            ESP_LOGI("MAIN", "MANDAR LA NOTIFICACION %s AL CLIENTE", alertEntry->descripcion);
-            
-            if (!menu_add(&menu, alertEntry->descripcion)) {
-                ESP_LOGW("MAIN", "Menu full, dropping '%s'", alertEntry->descripcion);  //Si está llena la lista lo ignoramos? Decidir
-            }
-
-            menu_invalidate(&menu);
-            
+            char message[64];
+            snprintf(message, sizeof(message), "notify %.50s", alertEntry->descripcion);
+            server_send_to_device(message);
+            ESP_LOGI("MAIN", "Notificacion enviada al cliente: %s", alertEntry->descripcion);
         }
 
         menu_draw(&menu);

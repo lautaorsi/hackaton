@@ -1,6 +1,7 @@
-
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "driver/gpio.h"
 #include "esp_event.h"
@@ -12,6 +13,8 @@
 #include "freertos/task.h"
 #include "nvs_flash.h"
 
+#include "wifi.h"
+
 #define WIFI_SSID   "eciExploit"
 #define WIFI_PASS   "ioannis1"
 
@@ -19,6 +22,7 @@ static const char *TAG = "kiwi";
 
 static httpd_handle_t s_server;
 static volatile bool s_tune_requested;
+static volatile int s_device_fd = -1;   // socket del producto, -1 si no hay
 
 static const char s_page[] =
     "<!doctype html><html><head><meta charset=utf-8>"
@@ -39,28 +43,17 @@ static const char s_page[] =
     "a.onclick=()=>{if(ws.readyState==1&&x.value)ws.send('add '+d.value+' '+t.value+' '+x.value)};"
     "c();</script></body></html>";
 
-static esp_err_t page_handler(httpd_req_t *req)
-{
-    httpd_resp_set_type(req, "text/html");
-    return httpd_resp_send(req, s_page, sizeof(s_page) - 1);
-}   
+/* ---------- Respuestas a las preguntas del producto ---------- */
 
-static esp_err_t ws_handler(httpd_req_t *req)
+static const char *answer_for(const char *question)
 {
-    if (req->method == HTTP_GET) {
-        ESP_LOGI(TAG, "phone connected");
-        return ESP_OK;
+    if (strcmp(question, "status") == 0) {
+        return "ok";
     }
-    uint8_t buf[16] = {0};
-    httpd_ws_frame_t frame = {.payload = buf};
-    if (httpd_ws_recv_frame(req, &frame, sizeof(buf) - 1) != ESP_OK) {
-        return ESP_FAIL;
-    }
-    if (frame.type == HTTPD_WS_TYPE_TEXT && strcmp((char *)buf, "tune") == 0) {
-        s_tune_requested = true;
-    }
-    return ESP_OK;
+    return "unknown";
 }
+
+/* ---------- Envio a los celulares ---------- */
 
 // Runs on the http server task, the only one that should touch its sockets.
 static void broadcast(void *arg)
@@ -75,11 +68,130 @@ static void broadcast(void *arg)
         return;
     }
     for (size_t i = 0; i < n; i++) {
-        if (httpd_ws_get_fd_info(s_server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
+        if (fds[i] != s_device_fd && httpd_ws_get_fd_info(s_server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
             httpd_ws_send_frame_async(s_server, fds[i], &frame);
         }
     }
 }
+
+// Runs on the http server task. Takes ownership of `arg` (malloc'd text).
+static void broadcast_text_work(void *arg)
+{
+    char *text = arg;
+    httpd_ws_frame_t frame = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)text, .len = strlen(text)};
+
+    int fds[CONFIG_LWIP_MAX_SOCKETS];
+    size_t n = CONFIG_LWIP_MAX_SOCKETS;
+    if (httpd_get_client_list(s_server, &n, fds) == ESP_OK) {
+        for (size_t i = 0; i < n; i++) {
+            if (fds[i] != s_device_fd && httpd_ws_get_fd_info(s_server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
+                httpd_ws_send_frame_async(s_server, fds[i], &frame);
+            }
+        }
+    }
+    free(text);
+}
+
+// Copies the text and sends it to every phone (not to the product).
+static void broadcast_text(const char *text)
+{
+    char *copy = strdup(text);
+    if (copy != NULL && httpd_queue_work(s_server, broadcast_text_work, copy) != ESP_OK) {
+        free(copy);
+    }
+}
+
+/* ---------- Envio al producto ---------- */
+
+// Runs on the http server task. Takes ownership of `arg` (malloc'd text).
+static void send_to_device_work(void *arg)
+{
+    char *text = arg;
+    int fd = s_device_fd;
+
+    if (fd >= 0) {
+        httpd_ws_frame_t frame = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)text, .len = strlen(text)};
+        httpd_ws_send_frame_async(s_server, fd, &frame);
+    }
+    free(text);
+}
+
+// Sends a text message to the product. Safe to call from any task.
+void server_send_to_device(const char *text)
+{
+    char *copy = strdup(text);
+    if (copy != NULL && httpd_queue_work(s_server, send_to_device_work, copy) != ESP_OK) {
+        free(copy);
+    }
+}
+
+/* ---------- Handlers HTTP / WebSocket ---------- */
+
+static esp_err_t page_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, s_page, sizeof(s_page) - 1);
+}
+
+// Celular (/ws)
+static esp_err_t ws_handler(httpd_req_t *req)
+{
+    if (req->method == HTTP_GET) {
+        ESP_LOGI(TAG, "phone connected");
+        return ESP_OK;
+    }
+    uint8_t buf[64] = {0};
+    httpd_ws_frame_t frame = {.payload = buf};
+    if (httpd_ws_recv_frame(req, &frame, sizeof(buf) - 1) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (frame.type == HTTPD_WS_TYPE_TEXT && strcmp((char *)buf, "tune") == 0) {
+        s_tune_requested = true;
+    }
+    return ESP_OK;
+}
+
+// Producto (/device)
+static esp_err_t device_ws_handler(httpd_req_t *req)
+{
+    if (req->method == HTTP_GET) {
+        s_device_fd = httpd_req_to_sockfd(req);
+        ESP_LOGI(TAG, "device connected");
+        return ESP_OK;
+    }
+
+    uint8_t buf[64] = {0};
+    httpd_ws_frame_t frame = {.payload = buf};
+    if (httpd_ws_recv_frame(req, &frame, sizeof(buf) - 1) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    if (frame.type != HTTPD_WS_TYPE_TEXT) {
+        return ESP_OK;
+    }
+
+    const char *msg = (const char *)buf;
+    if (strncmp(msg, "ask ", 4) == 0) {
+        char reply[48];
+        int len = snprintf(reply, sizeof(reply), "ans %s", answer_for(msg + 4));
+        httpd_ws_frame_t out = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)reply, .len = len};
+        return httpd_ws_send_frame(req, &out);
+    }
+    if (strncmp(msg, "event ", 6) == 0) {
+        broadcast_text(msg + 6);
+    }
+    return ESP_OK;
+}
+
+static void on_client_close(httpd_handle_t hd, int fd)
+{
+    if (fd == s_device_fd) {
+        s_device_fd = -1;
+        ESP_LOGW(TAG, "device disconnected");
+    }
+    close(fd);
+}
+
+/* ---------- Melodias ---------- */
 
 // Plays a note on every connected phone and waits for it to finish.
 static void play(int freq_hz, int ms)
@@ -100,6 +212,8 @@ static void play_tune(void)
         vTaskDelay(pdMS_TO_TICKS(30));
     }
 }
+
+/* ---------- Arranque ---------- */
 
 static void wifi_ap_start(void)
 {
@@ -136,12 +250,14 @@ void start_server(void)
     wifi_ap_start();
 
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
+    cfg.close_fn = on_client_close;
     ESP_ERROR_CHECK(httpd_start(&s_server, &cfg));
+
     const httpd_uri_t page = {.uri = "/", .method = HTTP_GET, .handler = page_handler};
     const httpd_uri_t ws = {.uri = "/ws", .method = HTTP_GET, .handler = ws_handler, .is_websocket = true};
+    const httpd_uri_t device = {.uri = "/device", .method = HTTP_GET, .handler = device_ws_handler, .is_websocket = true};
     ESP_ERROR_CHECK(httpd_register_uri_handler(s_server, &page));
     ESP_ERROR_CHECK(httpd_register_uri_handler(s_server, &ws));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(s_server, &device));
     ESP_LOGI(TAG, "join Wi-Fi '%s' (password '%s') and open http://192.168.4.1", WIFI_SSID, WIFI_PASS);
-
-
 }
