@@ -51,8 +51,7 @@ void app_main(void) {
 
             const struct CalendarEntry *alertEntry;
             if (xQueueReceive(calendar_alert_queue(), &alertEntry, 0) == pdPASS) {
-                //ACA MANDAR LA NOTIFICACION AL CLIENTE
-
+                ESP_LOGI("MAIN","MANDAR LA NOTIFICACION %s AL CLIENTE", alertEntry->descripcion);
                 //display_clear();
                 // display_text(5, 0,  "** ALERT **", true);
                 // display_text(5, 16, alertEntry->descripcion, false);
