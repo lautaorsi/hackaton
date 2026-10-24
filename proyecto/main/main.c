@@ -12,49 +12,56 @@
 #include "wifi.h"
 
 #define MAX_SCREEN_CHARS 20
+
+#include "calendar.h"
+
 #define MAX_SCREEN_ROWS 8
-
-struct DateTime {
-    int weekDay;
-    int hour;
-    int minute;
-};
-
-struct CalendarEntry {
-    char descripcion[MAX_SCREEN_CHARS];
-    struct DateTime dateTime;
-};
 
 
 
 void app_main(void) {
     ESP_LOGI("MAIN", "Hello from my custom code folder!");
     
+    calendar_init();
+
     start_server();
+    calendar_set_timezone(CALENDAR_TZ_ARGENTINA);
+    calendar_set_fake_time(2026, 10, 23, 18, 59, 50); 
+    calendar_load_dummy();
+    calendar_start();
 
     bool display_ok = display_init() == ESP_OK;
     bool buttons_ok = buttons_init() == ESP_OK; 
 
     char strs[MAX_SCREEN_ROWS][MAX_SCREEN_CHARS];
 
-    strcpy(strs[0], "Option 1"); 
-    strcpy(strs[1], "Option 2");
-    strcpy(strs[2], "Option 3");
-    strcpy(strs[3], "Option 4");
-    strcpy(strs[4], "Option 5");
-    strcpy(strs[5], "Option 6");
-    strcpy(strs[6], "Option 7");
-    strcpy(strs[7], "Option 8");
-
     int selected_row = 0;
     int last_selected_row = -1; 
 
     if (display_ok) {
 
+        char strs[MAX_SCREEN_ROWS][MAX_SCREEN_CHARS];
+        for (int i = 0; i < MAX_SCREEN_ROWS; i++) {
+            snprintf(strs[i], MAX_SCREEN_CHARS, "Option %d", i + 1);
+        }
+
         // Main UI Loop
         while (true) {
             QueueHandle_t btn_q = buttons_event_queue();
 
+            const struct CalendarEntry *alertEntry;
+            if (xQueueReceive(calendar_alert_queue(), &alertEntry, 0) == pdPASS) {
+                //ACA MANDAR LA NOTIFICACION AL CLIENTE
+
+                //display_clear();
+                // display_text(5, 0,  "** ALERT **", true);
+                // display_text(5, 16, alertEntry->descripcion, false);
+                // display_flush();
+
+                // button_event_t ev;
+                // xQueueReceive(btn_q, &ev, pdMS_TO_TICKS(10000));  // wait for a button
+                // last_selected_row = -1;                           // redraw the menu
+            }
 
             if (selected_row != last_selected_row) {
                 display_clear();
